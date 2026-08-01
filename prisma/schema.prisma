@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User and Authentication (Supabase Auth usually handles passwords, so we link to auth.users or just keep profile data here)
+// For simplicity in the app we store user profile data here. Supabase RLS will use the `email` or `id`.
+model User {
+  id          Int          @id @default(autoincrement())
+  email       String       @unique
+  name        String?
+  createdAt   DateTime     @default(now())
+  
+  // Relations
+  accounts    Account[]
+  assets      Asset[]
+  investments Investment[]
+  pet         Pet?
+  friends1    Friendship[] @relation("Friend1")
+  friends2    Friendship[] @relation("Friend2")
+}
+
+model Account {
+  id           Int           @id @default(autoincrement())
+  name         String
+  balance      Float         @default(0)
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  
+  transactions Transaction[]
+}
+
+model Category {
+  id           Int           @id @default(autoincrement())
+  name         String
+  type         String        // "Expense" or "Income"
+  
+  transactions Transaction[]
+}
+
+model Transaction {
+  id           Int           @id @default(autoincrement())
+  
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId    Int
+  
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId   Int?
+  
+  amount       Float
+  date         DateTime      @default(now())
+  notes        String?
+}
+
+model Asset {
+  id           Int           @id @default(autoincrement())
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  
+  name         String
+  type         String        // e.g., "Property", "Vehicle"
+  value        Float
+  acquired     DateTime?
+}
+
+model Investment {
+  id           Int           @id @default(autoincrement())
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  
+  name         String        // e.g., "AAPL", "MF Name"
+  type         String
+  amount       Float         // invested amount
+  quantity     Float?        // e.g., shares purchased
+  dateAcquired DateTime?
+}
+
+// V2 Gamification Models
+model Pet {
+  id           Int           @id @default(autoincrement())
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int           @unique
+  
+  name         String
+  xp           Int           @default(0)
+  level        Int           @default(1)
+  lastFed      DateTime?
+}
+
+model Friendship {
+  id           Int           @id @default(autoincrement())
+  
+  user1        User          @relation("Friend1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user1Id      Int
+  
+  user2        User          @relation("Friend2", fields: [user2Id], references: [id], onDelete: Cascade)
+  user2Id      Int
+  
+  status       String        // "pending", "accepted"
+}
