@@ -16,9 +16,29 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Database setup
+
+After setting `DATABASE_URL`, create or update the schema and seed the default transaction categories:
+
+```bash
+npm run db:push
+npm run db:seed
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Authentication setup
+
+DreamPaisa requires a verified Supabase email before users can view or change financial data.
+
+1. Copy `.env.example` to `.env` and provide the Supabase and database values.
+2. In Supabase Auth, enable **Confirm email**.
+3. In Supabase Auth URL configuration, add `http://localhost:3000/auth/callback` for local development and your production `/auth/callback` URL as an allowed redirect.
+4. Set `NEXT_PUBLIC_SITE_URL` to the public URL of the deployed app.
+
+## Account deletion retention
+
+Account deletion requires a new email verification link and that link is accepted for only 10 minutes. Confirmed deletion hides all finance data immediately and keeps it recoverable for seven days. Schedule a daily authenticated `POST` request to `/api/cron/purge-deleted` with `Authorization: Bearer $CRON_SECRET` to permanently purge data after the retention window.
 
 ## Learn More
 

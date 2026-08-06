@@ -23,7 +23,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-4">
+    <div className="flex flex-col items-center justify-center  min-h-[calc(100vh-1rem)] p-2">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Create an account</CardTitle>
@@ -31,19 +31,21 @@ export default function SignupPage() {
         </CardHeader>
         <form action={handleSubmit}>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-4">
               <Label htmlFor="name">Name</Label>
               <Input id="name" name="name" placeholder="John Doe" required />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-4">
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" placeholder="m@example.com" required />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-4">
               <Label htmlFor="password">Password</Label>
               <Input id="password" name="password" type="password" required />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div className="space-y-4">
+              {error && <p className="text-sm text-destructive">{error}</p>}
+            </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button className="w-full" type="submit" disabled={pending}>

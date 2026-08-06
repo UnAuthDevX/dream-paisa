@@ -1,13 +1,17 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import prisma from '@/lib/db';
 import { z } from 'zod';
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(8, 'Password must be at least 8 characters.'),
+});
+
+const signupSchema = loginSchema.extend({
+  name: z.string().trim().min(2, 'Name must be at least 2 characters.').max(100),
 });
 
 export async function login(formData: FormData) {
@@ -24,7 +28,7 @@ export async function login(formData: FormData) {
     return { error: 'Invalid input' };
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data: signInData, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
@@ -33,7 +37,22 @@ export async function login(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath('/', 'layout');
+  if (!signInData.user.email_confirmed_at) {
+    await supabase.auth.signOut();
+    return { error: 'Please verify your email before signing in. Check your inbox for the verification link.' };
+  }
+
+  const existingUser = await prisma.user.findUnique({ where: { email: signInData.user.email! } });
+  if (existingUser?.deletedAt) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+    await supabase.auth.signInWithOtp({
+      email: signInData.user.email!,
+      options: { emailRedirectTo: new URL('/auth/callback?next=/settings?recover=confirm', siteUrl).toString() },
+    });
+    await supabase.auth.signOut();
+    return { error: 'Your account is pending deletion. We sent a recovery verification link to your email.' };
+  }
+
   redirect('/dashboard');
 }
 
@@ -46,19 +65,21 @@ export async function signup(formData: FormData) {
     name: formData.get('name') as string,
   };
 
-  const parsed = loginSchema.safeParse({ email: data.email, password: data.password });
+  const parsed = signupSchema.safeParse(data);
 
   if (!parsed.success) {
     return { error: 'Invalid input' };
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
   const { error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
       data: {
-        full_name: data.name,
-      }
+        full_name: parsed.data.name,
+      },
+      emailRedirectTo: new URL('/auth/callback', siteUrl).toString(),
     }
   });
 
@@ -66,6 +87,11 @@ export async function signup(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath('/', 'layout');
-  redirect('/dashboard');
+  return { success: 'Check your inbox and verify your email before signing in.' };
+}
+
+export async function logout() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect('/');
 }

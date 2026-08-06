@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// This is your Prisma schema file
+// https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -7,105 +7,151 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-// User and Authentication (Supabase Auth usually handles passwords, so we link to auth.users or just keep profile data here)
-// For simplicity in the app we store user profile data here. Supabase RLS will use the `email` or `id`.
+// ==========================
+// User
+// ==========================
+
 model User {
-  id          Int          @id @default(autoincrement())
-  email       String       @unique
-  name        String?
-  createdAt   DateTime     @default(now())
-  
-  // Relations
-  accounts    Account[]
-  assets      Asset[]
-  investments Investment[]
-  pet         Pet?
-  friends1    Friendship[] @relation("Friend1")
-  friends2    Friendship[] @relation("Friend2")
+  id                        Int       @id @default(autoincrement())
+  email                     String    @unique
+  name                      String?
+  createdAt                 DateTime  @default(now())
+
+  deletionRequestedAt       DateTime?
+  deletionLinkExpiresAt     DateTime?
+  deletedAt                 DateTime?
+  purgeAfter                DateTime?
+
+  accounts                  Account[]
+  assets                    Asset[]
+  investments               Investment[]
+  pet                       Pet?
+
+  friends1                  Friendship[] @relation("Friend1")
+  friends2                  Friendship[] @relation("Friend2")
 }
+
+// ==========================
+// Accounts
+// ==========================
 
 model Account {
-  id           Int           @id @default(autoincrement())
-  name         String
-  balance      Float         @default(0)
-  
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       Int
-  
-  transactions Transaction[]
+  id            Int      @id @default(autoincrement())
+  name          String
+  balance       Float    @default(0)
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int
+
+  transactions  Transaction[]
 }
+
+// ==========================
+// Categories
+// ==========================
 
 model Category {
-  id           Int           @id @default(autoincrement())
-  name         String
-  type         String        // "Expense" or "Income"
-  
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+
+  icon        String
+  emoji       String?
+  color       String
+  description String?
+
+  isDefault   Boolean  @default(true)
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   transactions Transaction[]
+
+  @@unique([name, type], name: "name_type")
 }
+
+// ==========================
+// Transactions
+// ==========================
 
 model Transaction {
-  id           Int           @id @default(autoincrement())
-  
-  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  accountId    Int
-  
-  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  categoryId   Int?
-  
-  amount       Float
-  date         DateTime      @default(now())
-  notes        String?
+  id            Int        @id @default(autoincrement())
+
+  account       Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId     Int
+
+  category      Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId    String?
+
+  amount        Float
+  date          DateTime   @default(now())
+  notes         String?
 }
+
+// ==========================
+// Assets
+// ==========================
 
 model Asset {
-  id           Int           @id @default(autoincrement())
-  
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       Int
-  
-  name         String
-  type         String        // e.g., "Property", "Vehicle"
-  value        Float
-  acquired     DateTime?
+  id            Int      @id @default(autoincrement())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int
+
+  name          String
+  type          String
+  value         Float
+  acquired      DateTime?
 }
+
+// ==========================
+// Investments
+// ==========================
 
 model Investment {
-  id           Int           @id @default(autoincrement())
-  
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       Int
-  
-  name         String        // e.g., "AAPL", "MF Name"
-  type         String
-  amount       Float         // invested amount
-  quantity     Float?        // e.g., shares purchased
-  dateAcquired DateTime?
+  id            Int      @id @default(autoincrement())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int
+
+  name          String
+  type          String
+  amount        Float
+  quantity      Float?
+  dateAcquired  DateTime?
 }
 
-// V2 Gamification Models
+// ==========================
+// Pet (Gamification)
+// ==========================
+
 model Pet {
-  id           Int           @id @default(autoincrement())
-  
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       Int           @unique
-  
-  name         String
-  xp           Int           @default(0)
-  level        Int           @default(1)
-  lastFed      DateTime?
+  id            Int      @id @default(autoincrement())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int      @unique
+
+  name          String
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  lastFed       DateTime?
 }
+
+// ==========================
+// Friends
+// ==========================
 
 model Friendship {
-  id           Int           @id @default(autoincrement())
-  
-  user1        User          @relation("Friend1", fields: [user1Id], references: [id], onDelete: Cascade)
-  user1Id      Int
-  
-  user2        User          @relation("Friend2", fields: [user2Id], references: [id], onDelete: Cascade)
-  user2Id      Int
-  
-  status       String        // "pending", "accepted"
+  id            Int      @id @default(autoincrement())
+
+  user1         User     @relation("Friend1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user1Id       Int
+
+  user2         User     @relation("Friend2", fields: [user2Id], references: [id], onDelete: Cascade)
+  user2Id       Int
+
+  status        String
 }
