@@ -38,6 +38,19 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <Script
           async
+          src="https://www.googletagmanager.com/gtag/js?id=G-5PF9SCZH71"
+        />
+
+        <Script id="google-analytics">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){window.dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-5PF9SCZH71');
+          `}
+        </Script>
+        <Script
+          async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1096202877849237"
           crossOrigin="anonymous"
         ></Script>
