@@ -1,4 +1,0 @@
-[build.environment]
-# These repository-local skill references contain example connection strings.
-# They are not application code or part of the deployed site.
-SECRETS_SCAN_OMIT_PATHS = ".windsurf/skills/**"

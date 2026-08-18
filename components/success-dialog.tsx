@@ -22,8 +22,17 @@ export function SuccessDialog({ open, onDone, title, children }: SuccessDialogPr
         <div className="border-y py-3 text-center">
           <p className="mb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase">Sponsored</p>
           <div className="rounded-lg border bg-muted/40 p-3 text-left">
-            <p className="font-medium text-foreground">HDFC SIP</p>
-            <p className="text-sm text-muted-foreground">Start investing from ₹500</p>
+            <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1096202877849237"
+                crossorigin="anonymous"></script>
+            <ins class="adsbygoogle"
+                style="display:block"
+                data-ad-format="fluid"
+                data-ad-layout-key="-gw-3+1f-3d+2z"
+                data-ad-client="ca-pub-1096202877849237"
+                data-ad-slot="3810160132"></ins>
+            <script>
+                (adsbygoogle = window.adsbygoogle || []).push({});
+            </script>
           </div>
         </div>
         <DialogFooter>
