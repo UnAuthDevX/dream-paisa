@@ -2,11 +2,23 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { ServiceWorker } from "@/components/service-worker";
+import { CookieConsent } from "@/components/cookie-consent";
 
 export const metadata: Metadata = {
   title: "DreamPaisa - Personal Finance Tracker",
-  description: "Track your finances and build good habits",
+  description:
+    "Track your income, expenses, accounts, and spending habits with DreamPaisa.",
+  applicationName: "DreamPaisa",
+  keywords: [
+    "personal finance",
+    "expense tracker",
+    "budget tracker",
+    "money management",
+    "finance tracker",
+    "DreamPaisa",
+  ],
 };
+
 
 if (typeof window !== 'undefined') {
   const originalError = console.error;
@@ -40,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="flex-1">
             {children}
           </main>
+          <CookieConsent />
         </Providers>
       </body>
     </html>

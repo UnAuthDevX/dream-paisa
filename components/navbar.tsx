@@ -18,6 +18,8 @@ export async function Navbar() {
           </Link>
         </div>
         <div className="flex items-center space-x-4">
+          <Link href="/about" className="text-sm font-medium hover:text-primary">About</Link>
+          <Link href="/contact" className="text-sm font-medium hover:text-primary">Contact</Link>
           <ThemeToggle />
           {user ? (
             <form action={logout}><button className="text-sm font-medium hover:text-primary" type="submit">Sign out</button></form>

@@ -1,46 +1,21 @@
+import "dotenv/config";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+const connectionString =
+  process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
-async function main() {
-  console.log("🌱 Start seeding categories...");
-
-  for (const cat of defaultCategories) {
-    const category = await prisma.category.upsert({
-      where: {
-        name_type: {
-          name: cat.name,
-          type: cat.type,
-        },
-      },
-      update: {
-        icon: cat.icon,
-        emoji: cat.emoji,
-        color: cat.color,
-        description: cat.description,
-        isDefault: cat.isDefault,
-        isActive: true,
-      },
-      create: {
-        ...cat,
-        isActive: true,
-      },
-    });
-
-    console.log(`✅ ${category.name} (${category.type}) seeded`);
-  }
-
-  console.log("🎉 Categories seeded successfully!");
+if (!connectionString) {
+  throw new Error("DATABASE_URL or DIRECT_URL is not defined");
 }
 
-main()
-  .catch((error) => {
-    console.error("❌ Seeding failed:", error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+const adapter = new PrismaPg({
+  connectionString,
+});
+
+const prisma = new PrismaClient({
+  adapter,
+});
 
 type CategoryType = "Income" | "Expense";
 
@@ -474,4 +449,46 @@ export const defaultCategories: DefaultCategory[] = [
   },
 ];
 
+
+
+
+async function main() {
+  console.log("🌱 Start seeding categories...");
+
+  for (const cat of defaultCategories) {
+    const category = await prisma.category.upsert({
+      where: {
+        name_type: {
+          name: cat.name,
+          type: cat.type,
+        },
+      },
+      update: {
+        icon: cat.icon,
+        emoji: cat.emoji,
+        color: cat.color,
+        description: cat.description,
+        isDefault: cat.isDefault,
+        isActive: true,
+      },
+      create: {
+        ...cat,
+        isActive: true,
+      },
+    });
+
+    console.log(`✅ ${category.name} (${category.type}) seeded`);
+  }
+
+  console.log("🎉 Categories seeded successfully!");
+}
+
+main()
+  .catch((error) => {
+    console.error("❌ Seeding failed:", error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
 

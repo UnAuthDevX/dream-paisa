@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -8,22 +8,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { login } from '../auth-actions';
+import { LoaderCircle } from 'lucide-react';
 
 function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const submissionLock = useRef(false);
   const searchParams = useSearchParams();
   const message = searchParams.get('message');
   const callbackError = searchParams.get('error');
 
   async function handleSubmit(formData: FormData) {
+    if (submissionLock.current) return;
+    submissionLock.current = true;
     setPending(true);
     setError(null);
-    const result = await login(formData);
-    if (result?.error) {
-      setError(result.error);
+    try {
+      const result = await login(formData);
+      if (result?.error) setError(result.error);
+    } finally {
+      setPending(false);
+      submissionLock.current = false;
     }
-    setPending(false);
   }
 
   return (
@@ -51,7 +57,7 @@ function LoginForm() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button className="w-full" type="submit" disabled={pending}>
-              {pending ? "Signing in..." : "Sign in"}
+              {pending ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Signing in...</> : "Sign in"}
             </Button>
             <div className="text-center text-sm">
               Don&apos;t have an account?{" "}

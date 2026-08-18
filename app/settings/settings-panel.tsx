@@ -1,19 +1,107 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, MailCheck, Trash2 } from 'lucide-react';
-import { completePasswordChange, confirmAccountDeletion, recoverAccount, requestAccountDeletion, requestPasswordChange, updateProfile } from '@/app/actions/settings';
+import { completePasswordChange, requestPasswordChange, updateProfile } from '@/app/actions/settings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { logout } from '../auth-actions';
+import { KeyRound, User, LogOut } from 'lucide-react';
 
-type Props = { name: string; email: string; deletionConfirmation: boolean; recoveryConfirmation: boolean; passwordReset: boolean; deleted: boolean; purgeAfter: string | null };
+type Props = {
+  name: string;
+  email: string;
+  passwordReset: boolean;
+};
 
-export default function SettingsPanel({ name, email, deletionConfirmation, recoveryConfirmation, passwordReset, deleted, purgeAfter }: Props) {
+export default function SettingsPanel({ name, email, passwordReset }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  async function run(action: () => Promise<{ error?: string; success?: string } | void>) { setPending(true); setMessage(null); setError(null); const result = await action(); setPending(false); if (result?.error) setError(result.error); else if (result?.success) setMessage(result.success); }
-  if (deleted) return <section className="mx-auto max-w-xl space-y-5 rounded-xl border border-destructive/40 bg-card p-6"><div className="flex gap-3"><AlertTriangle className="mt-1 text-destructive" /><div><h1 className="text-2xl font-bold">Account scheduled for deletion</h1><p className="mt-1 text-muted-foreground">Your data is hidden and will be permanently deleted on {purgeAfter}. Recover it only if this deletion was not intended.</p></div></div>{recoveryConfirmation ? <Button disabled={pending} onClick={() => run(recoverAccount)}><MailCheck className="mr-2 h-4 w-4" />{pending ? 'Recovering...' : 'Recover my account'}</Button> : <p className="rounded-md bg-muted p-3 text-sm">Sign in again to receive a fresh recovery verification email.</p>}{message && <p className="text-sm text-green-600">{message}</p>}{error && <p className="text-sm text-destructive">{error}</p>}</section>;
-  return <div className="mx-auto max-w-xl space-y-6"><section className="rounded-xl border bg-card p-6"><h1 className="text-2xl font-bold">Settings</h1><p className="mt-1 text-muted-foreground">Manage your profile and account security.</p><form action={(data) => run(() => updateProfile(data))} className="mt-5 space-y-4"><div className="space-y-2"><Label htmlFor="name">Display name</Label><Input id="name" name="name" defaultValue={name} required /></div><div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" value={email} disabled /></div><Button disabled={pending}>{pending ? 'Saving...' : 'Save profile'}</Button></form></section><section className="rounded-xl border bg-card p-6"><h2 className="font-semibold">Password</h2><p className="mt-1 text-sm text-muted-foreground">A password-change link is sent only to your verified email.</p>{passwordReset ? <form action={(data) => run(() => completePasswordChange(data))} className="mt-4 flex flex-col gap-3 sm:flex-row"><Input name="password" type="password" minLength={8} placeholder="New password" required /><Button disabled={pending}>{pending ? 'Updating...' : 'Set new password'}</Button></form> : <Button className="mt-4" variant="outline" disabled={pending} onClick={() => run(requestPasswordChange)}>{pending ? 'Sending...' : 'Email password-reset link'}</Button>}</section><section className="rounded-xl border border-destructive/40 bg-card p-6"><div className="flex gap-3"><Trash2 className="mt-1 text-destructive" /><div><h2 className="font-semibold">Delete account</h2><p className="mt-1 text-sm text-muted-foreground">We email a verification link that expires in 10 minutes. Once confirmed, your data is recoverable for 7 days.</p></div></div>{deletionConfirmation ? <Button className="mt-4" variant="destructive" disabled={pending} onClick={() => run(confirmAccountDeletion)}>{pending ? 'Deleting...' : 'Confirm deletion'}</Button> : <Button className="mt-4" variant="destructive" disabled={pending} onClick={() => run(requestAccountDeletion)}>{pending ? 'Sending link...' : 'Email deletion link'}</Button>}</section>{message && <p className="text-sm text-green-600">{message}</p>}{error && <p className="text-sm text-destructive">{error}</p>}</div>;
+
+  async function run(action: () => Promise<{ error?: string; success?: string } | void>) {
+    if (pending) return;
+    setPending(true);
+    setMessage(null);
+    setError(null);
+    const result = await action();
+    setPending(false);
+    if (result?.error) setError(result.error);
+    else if (result?.success) setMessage(result.success);
+  }
+
+  return (
+    <div className="mx-auto max-w-xl space-y-6">
+      {/* Profile Settings */}
+      <section className="rounded-2xl border bg-card p-6 shadow-xs">
+        <div className="flex items-center gap-3 border-b pb-4">
+          <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600">
+            <User className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Profile Settings</h1>
+            <p className="text-xs text-muted-foreground">Manage your personal account details</p>
+          </div>
+        </div>
+
+        <form action={(data) => run(() => updateProfile(data))} className="mt-5 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Display Name</Label>
+            <Input id="name" name="name" defaultValue={name} required />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address</Label>
+            <Input id="email" value={email} disabled className="bg-muted/50" />
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <Button type="submit" disabled={pending}>
+              {pending ? 'Saving...' : 'Save Profile'}
+            </Button>
+            <Button type="button" variant="outline" className="text-destructive hover:bg-destructive/10 border-destructive/30" onClick={() => logout()}>
+              <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      {/* Password Management */}
+      <section className="rounded-2xl border bg-card p-6 shadow-xs">
+        <div className="flex items-center gap-3 border-b pb-4">
+          <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600">
+            <KeyRound className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">Password & Security</h2>
+            <p className="text-xs text-muted-foreground">Update your login password securely</p>
+          </div>
+        </div>
+
+        {passwordReset ? (
+          <form action={(data) => run(() => completePasswordChange(data))} className="mt-5 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password">New Password</Label>
+              <Input id="password" name="password" type="password" minLength={8} placeholder="Enter at least 8 characters" required />
+            </div>
+            <Button type="submit" disabled={pending} className="bg-blue-600 hover:bg-blue-700 text-white">
+              {pending ? 'Updating & Logging Out...' : 'Set New Password'}
+            </Button>
+          </form>
+        ) : (
+          <div className="mt-5 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Request a secure password change link sent to <strong>{email}</strong>.
+            </p>
+            <Button type="button" variant="outline" disabled={pending} onClick={() => run(requestPasswordChange)}>
+              {pending ? 'Sending Link...' : 'Email Password Reset Link'}
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {message && <p className="text-sm font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 p-3 rounded-xl">{message}</p>}
+      {error && <p className="text-sm font-medium text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-xl">{error}</p>}
+    </div>
+  );
 }

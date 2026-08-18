@@ -4,9 +4,13 @@ import FlexLight from '../Asserts/FlexLight.png';
 import FlexDark from '../Asserts/FlexDark.png';
 import { ArrowRight, Wallet, TrendingUp, ShieldCheck } from "lucide-react";
 import { Navbar } from "@/components/navbar";
+import { getVerifiedUser } from "@/lib/auth";
+import { SiteFooter } from "@/components/site-footer";
 
 
-export default function Home() {
+export default async function Home() {
+  const user = await getVerifiedUser();
+
   return (
     <div className="flex flex-col items-center">
       <Navbar  />
@@ -26,18 +30,25 @@ export default function Home() {
                 Track your expenses, build good habits, and grow your virtual pet alongside your savings.
               </p>
               <div className="space-x-4 content-start">
+                {user ? <Link
+                  href="/dashboard"
+                  className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                >
+                  Dashboard 
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link> :
                 <Link
                   href="/signup"
                   className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
                 >
                   Get Started
                   <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                </Link>}
               </div>
             </div>
             <div className="lg:block xl:block hidden w-1/2">
-              <Image src={FlexLight} alt='flex' className='dark:hidden rounded-xl drop-shadow-ring w-130 h-130 drop-shadow-xl'/>
-              <Image src={FlexDark} alt='flex' className='hidden dark:block rounded-xl w-130 h-130 drop-shadow-ring drop-shadow-xl' />
+              <Image src={FlexLight} alt='flex' className='dark:hidden rounded-xl drop-shadow-ring w-110 h-130 drop-shadow-xl'/>
+              <Image src={FlexDark} alt='flex' className='hidden dark:block rounded-xl w-110 h-130 drop-shadow-ring drop-shadow-xl' />
             </div>
           </div>
         </div>
@@ -77,6 +88,14 @@ export default function Home() {
           </div>
         </div>
       </section>
+      <section className="w-full border-t bg-muted/30 py-12 text-center">
+        <div className="container mx-auto max-w-2xl px-4">
+          <h2 className="text-2xl font-bold">Built for personal money awareness</h2>
+          <p className="mt-3 text-muted-foreground">DreamPaisa helps you organize your own financial information. It is not a bank and does not provide financial advice.</p>
+          <Link href="/about" className="mt-5 inline-block font-medium text-primary underline underline-offset-4">Learn more about DreamPaisa</Link>
+        </div>
+      </section>
+      <SiteFooter />
     </div>
   );
 }
