@@ -17,29 +17,16 @@ export const metadata: Metadata = {
     "finance tracker",
     "DreamPaisa",
   ],
+  other: {
+    "google-adsense-account": "ca-pub-1096202877849237",
+  },
 };
 
-
-if (typeof window !== 'undefined') {
-  const originalError = console.error;
-  console.error = (...args) => {
-    if (args?.toString().includes('Encountered a script tag while rendering React component')) {
-      return;
-    }
-    originalError(...args);
-  };
-}
-
-// export default function RootLayout({
-//   children,
-// }: Readonly<{
-//   children: React.ReactNode;
-// }>) {
-//   return (
-    
-//   );
-// }
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
@@ -47,11 +34,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <Providers attribute="class" defaultTheme="light" enableSystem={false}>
+        <Providers
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+        >
           <ServiceWorker />
+
           <main className="flex-1">
             {children}
           </main>
+
           <CookieConsent />
         </Providers>
       </body>
