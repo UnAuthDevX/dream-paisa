@@ -3,12 +3,17 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { ServiceWorker } from "@/components/service-worker";
 import { CookieConsent } from "@/components/cookie-consent";
+import Script from "next/script";
+
 
 export const metadata: Metadata = {
   title: "DreamPaisa - Personal Finance Tracker",
   description:
     "Track your income, expenses, accounts, and spending habits with DreamPaisa.",
   applicationName: "DreamPaisa",
+  other: {
+    "google-adsense-account": "ca-pub-1096202877849237",
+  },
   keywords: [
     "personal finance",
     "expense tracker",
@@ -17,9 +22,6 @@ export const metadata: Metadata = {
     "finance tracker",
     "DreamPaisa",
   ],
-  other: {
-    "google-adsense-account": "ca-pub-1096202877849237",
-  },
 };
 
 export default function RootLayout({
@@ -34,6 +36,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1096202877849237"
+          crossOrigin="anonymous"
+        ></Script>
         <Providers
           attribute="class"
           defaultTheme="light"
