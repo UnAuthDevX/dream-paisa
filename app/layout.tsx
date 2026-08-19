@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   applicationName: "DreamPaisa",
   other: {
     "google-adsense-account": "ca-pub-1096202877849237",
+"google-site-verification":"6QH_Y_FppYXs-Jy4nUHbYlMdPy20wTXfTeXHwHXOnhI",
   },
   keywords: [
     "personal finance",
