@@ -23,15 +23,16 @@ export async function login(formData: FormData) {
   };
 
   const parsed = loginSchema.safeParse(data);
-  
+
   if (!parsed.success) {
     return { error: 'Invalid input' };
   }
 
-  const { data: signInData, error } = await supabase.auth.signInWithPassword({
-    email: parsed.data.email,
-    password: parsed.data.password,
-  });
+  const { data: signInData, error } =
+    await supabase.auth.signInWithPassword({
+      email: parsed.data.email,
+      password: parsed.data.password,
+    });
 
   if (error) {
     return { error: error.message };
@@ -39,18 +40,39 @@ export async function login(formData: FormData) {
 
   if (!signInData.user.email_confirmed_at) {
     await supabase.auth.signOut();
-    return { error: 'Please verify your email before signing in. Check your inbox for the verification link.' };
+
+    return {
+      error:
+        'Please verify your email before signing in. Check your inbox for the verification link.',
+    };
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: signInData.user.email! } });
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email: signInData.user.email!,
+    },
+  });
+
   if (existingUser?.deletedAt) {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
     await supabase.auth.signInWithOtp({
       email: signInData.user.email!,
-      options: { emailRedirectTo: new URL('/auth/callback?next=/settings?recover=confirm', siteUrl).toString() },
+      options: {
+        emailRedirectTo: new URL(
+          '/auth/callback?next=/settings?recover=confirm',
+          siteUrl
+        ).toString(),
+      },
     });
+
     await supabase.auth.signOut();
-    return { error: 'Your account is pending deletion. We sent a recovery verification link to your email.' };
+
+    return {
+      error:
+        'Your account is pending deletion. We sent a recovery verification link to your email.',
+    };
   }
 
   redirect('/dashboard');
@@ -68,26 +90,64 @@ export async function signup(formData: FormData) {
   const parsed = signupSchema.safeParse(data);
 
   if (!parsed.success) {
-    return { error: 'Invalid input' };
+    return {
+      error: 'Please enter a valid name, email, and password.',
+    };
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-  const { error } = await supabase.auth.signUp({
-    email: parsed.data.email,
+  const email = parsed.data.email.toLowerCase().trim();
+
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+
+  if (existingUser && !existingUser.deletedAt) {
+    return {
+      error: 'An account with this email already exists. Please sign in instead.',
+    };
+  }
+
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
+  const { data: signUpData, error } = await supabase.auth.signUp({
+    email,
     password: parsed.data.password,
     options: {
       data: {
         full_name: parsed.data.name,
       },
-      emailRedirectTo: new URL('/auth/callback', siteUrl).toString(),
-    }
+      emailRedirectTo: new URL(
+        '/auth/callback',
+        siteUrl
+      ).toString(),
+    },
   });
 
   if (error) {
-    return { error: error.message };
+    console.error('Signup error:', error);
+
+    return {
+      error: error.message,
+    };
   }
 
-  return { success: 'Check your inbox and verify your email before signing in.' };
+  if (
+    signUpData.user &&
+    signUpData.user.identities &&
+    signUpData.user.identities.length === 0
+  ) {
+    return {
+      error: 'An account with this email already exists. Please sign in instead.',
+    };
+  }
+
+  return {
+    success:
+      'Account created! Check your inbox and verify your email before signing in.',
+  };
 }
 
 export async function logout() {

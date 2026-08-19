@@ -3,70 +3,177 @@
 import { Suspense, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { login } from '../auth-actions';
 import { LoaderCircle } from 'lucide-react';
 
+function SubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <>
+      <Button
+        className="h-11 w-full"
+        type="submit"
+        disabled={pending}
+      >
+        {pending ? (
+          <>
+            <LoaderCircle className="mr-2 h-5 w-5 animate-spin" />
+            Signing in...
+          </>
+        ) : (
+          'Sign in'
+        )}
+      </Button>
+
+      {pending && (
+        <div className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border bg-muted/40 px-4 py-4">
+          <LoaderCircle className="h-6 w-6 animate-spin" />
+
+          <p className="text-sm font-medium">
+            Authenticating your account
+          </p>
+
+          <p className="text-xs text-muted-foreground">
+            Please wait...
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 function LoginForm() {
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
   const submissionLock = useRef(false);
+
   const searchParams = useSearchParams();
+
   const message = searchParams.get('message');
   const callbackError = searchParams.get('error');
 
   async function handleSubmit(formData: FormData) {
     if (submissionLock.current) return;
+
     submissionLock.current = true;
-    setPending(true);
     setError(null);
-    try {
-      const result = await login(formData);
-      if (result?.error) setError(result.error);
-    } finally {
-      setPending(false);
+
+    const result = await login(formData);
+
+    if (result?.error) {
+      setError(result.error);
       submissionLock.current = false;
     }
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-1rem)] p-2">
+    <div className="flex min-h-[calc(100vh-1rem)] items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Welcome back</CardTitle>
-          <CardDescription>Enter your email to sign in to your account</CardDescription>
+
+        <CardHeader className="space-y-3 px-6 pt-8 pb-6">
+          <CardTitle className="text-2xl">
+            Welcome back
+          </CardTitle>
+
+          <CardDescription className="text-sm leading-relaxed">
+            Enter your email and password to sign in to your
+            DreamPaisa account.
+          </CardDescription>
         </CardHeader>
+
         <form action={handleSubmit}>
-          <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="m@example.com" required />
+
+          <CardContent className="space-y-6 px-6">
+
+            {/* Email */}
+            <div className="space-y-3">
+              <Label htmlFor="email">
+                Email
+              </Label>
+
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="m@example.com"
+                className="h-11"
+                required
+              />
             </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+
+            {/* Password */}
+            <div className="space-y-3">
+              <Label htmlFor="password">
+                Password
+              </Label>
+
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                className="h-11"
+                required
+              />
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+                <p className="text-sm leading-relaxed text-destructive">
+                  {error}
+                </p>
               </div>
-              <Input id="password" name="password" type="password" required />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            {callbackError && <p className="text-sm text-destructive">{callbackError}</p>}
-            {message && <p className="text-sm text-muted-foreground">{message}</p>}
+            )}
+
+            {/* Callback Error */}
+            {callbackError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+                <p className="text-sm leading-relaxed text-destructive">
+                  {callbackError}
+                </p>
+              </div>
+            )}
+
+            {/* Message */}
+            {message && (
+              <div className="rounded-lg border p-4">
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {message}
+                </p>
+              </div>
+            )}
+
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button className="w-full" type="submit" disabled={pending}>
-              {pending ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Signing in...</> : "Sign in"}
-            </Button>
-            <div className="text-center text-sm">
-              Don&apos;t have an account?{" "}
-              <Link href="/signup" className="underline">
+
+          <CardFooter className="flex flex-col gap-5 px-6 pt-6 pb-8">
+
+            <SubmitButton />
+
+            <div className="text-center text-sm text-muted-foreground">
+              Don&apos;t have an account?{' '}
+              <Link
+                href="/signup"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
                 Sign up
               </Link>
             </div>
+
           </CardFooter>
         </form>
+
       </Card>
     </div>
   );
@@ -74,7 +181,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-[calc(100vh-4rem)]" />}>
+    <Suspense
+      fallback={
+        <div className="min-h-[calc(100vh-4rem)]" />
+      }
+    >
       <LoginForm />
     </Suspense>
   );
