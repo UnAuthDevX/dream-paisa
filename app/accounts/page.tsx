@@ -1,6 +1,8 @@
 import { getAccounts } from '@/app/actions/accounts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Wallet } from 'lucide-react';
+
+export const metadata = { title: 'Accounts', description: 'View and manage your financial accounts and balances.' };
 import AccountFormModal from './account-form-modal';
 import { requireVerifiedUser } from '@/lib/auth';
 import { NavSlide } from '@/components/sidenav';

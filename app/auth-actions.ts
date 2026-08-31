@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import prisma from '@/lib/db';
 import { z } from 'zod';
 
+const genericPasswordResetMessage = 'If an account exists for this email, a reset link has been sent.';
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'Password must be at least 8 characters.'),
@@ -154,4 +156,55 @@ export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect('/');
+}
+
+export async function requestPasswordReset(emailValue: string) {
+  const email = z.string().email().safeParse(emailValue.trim().toLowerCase());
+  if (!email.success) return { success: genericPasswordResetMessage };
+
+  const user = await prisma.user.findUnique({
+    where: { email: email.data },
+    select: { id: true, lastPasswordResetRequestAt: true },
+  });
+
+  // Keep the response identical whether or not an account exists, and when a
+  // request is rate-limited, so this endpoint cannot be used to enumerate users.
+  const fifteenDaysMs = 15 * 24 * 60 * 60 * 1000;
+  if (user?.lastPasswordResetRequestAt && Date.now() - user.lastPasswordResetRequestAt.getTime() < fifteenDaysMs) {
+    return { success: genericPasswordResetMessage };
+  }
+
+  if (user) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+    const supabase = await createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.data, {
+      redirectTo: new URL('/auth/callback?next=/reset-password', siteUrl).toString(),
+    });
+
+    // Do not expose delivery/provider errors to unauthenticated callers.
+    if (!error) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastPasswordResetRequestAt: new Date() },
+      });
+    }
+  }
+
+  return { success: genericPasswordResetMessage };
+}
+
+export async function resetPasswordWithToken(newPassword: string) {
+  const password = z.string().min(8, 'Password must be at least 8 characters.').safeParse(newPassword);
+  if (!password.success) return { error: password.error.issues[0]?.message ?? 'Invalid password.' };
+
+  // Supabase validates the recovery session created from the emailed token.
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.updateUser({ password: password.data });
+  if (error || !data.user) return { error: 'This reset link is invalid or has expired. Please request a new one.' };
+
+  await prisma.user.updateMany({
+    where: { email: data.user.email?.toLowerCase() },
+    data: { passwordResetTokenHash: null, passwordResetTokenExpiresAt: null },
+  });
+  return { success: 'Your password has been reset. You can now sign in.' };
 }

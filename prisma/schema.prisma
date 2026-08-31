@@ -13,6 +13,10 @@ datasource db {
 // User
 // ==========================
 
+// ==========================
+// User
+// ==========================
+
 model User {
   id                        Int       @id @default(autoincrement())
   email                     String    @unique
@@ -24,9 +28,19 @@ model User {
   deletedAt                 DateTime?
   purgeAfter                DateTime?
 
+  // Security / Password Reset fields
+  lastPasswordResetRequestAt DateTime?
+  passwordResetTokenHash     String?
+  passwordResetTokenExpiresAt DateTime?
+
   accounts                  Account[]
   assets                    Asset[]
   investments               Investment[]
+  loans                     Loan[]
+  insurances                Insurance[]
+  recurringTransactions     RecurringTransaction[]
+  goals                     Goal[]
+  dashboardPreferences      UserDashboardPreference[]
   pet                       Pet?
 
   friends1                  Friendship[] @relation("Friend1")
@@ -38,14 +52,15 @@ model User {
 // ==========================
 
 model Account {
-  id            Int      @id @default(autoincrement())
-  name          String
-  balance       Float    @default(0)
+  id                    Int                    @id @default(autoincrement())
+  name                  String
+  balance               Float                  @default(0)
 
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        Int
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                Int
 
-  transactions  Transaction[]
+  transactions          Transaction[]
+  recurringTransactions RecurringTransaction[]
 }
 
 // ==========================
@@ -53,22 +68,23 @@ model Account {
 // ==========================
 
 model Category {
-  id          String   @id @default(cuid())
-  name        String
-  type        String
+  id                    String                 @id @default(cuid())
+  name                  String
+  type                  String
 
-  icon        String
-  emoji       String?
-  color       String
-  description String?
+  icon                  String
+  emoji                 String?
+  color                 String
+  description           String?
 
-  isDefault   Boolean  @default(true)
-  isActive    Boolean  @default(true)
+  isDefault             Boolean                @default(true)
+  isActive              Boolean                @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
-  transactions Transaction[]
+  transactions          Transaction[]
+  recurringTransactions RecurringTransaction[]
 
   @@unique([name, type], name: "name_type")
 }
@@ -78,17 +94,40 @@ model Category {
 // ==========================
 
 model Transaction {
-  id            Int        @id @default(autoincrement())
+  id                 Int         @id @default(autoincrement())
 
-  account       Account?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  accountId     Int?
+  account            Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  accountId          Int?
 
-  category      Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  categoryId    String?
+  category           Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId         String?
 
-  amount        Float
-  date          DateTime   @default(now())
-  notes         String?
+  asset              Asset?      @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  assetId            Int?
+
+  investment         Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  investmentId       Int?
+
+  loan               Loan?       @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  loanId             Int?
+
+  insurance          Insurance?  @relation(fields: [insuranceId], references: [id], onDelete: SetNull)
+  insuranceId        Int?
+
+  recurringTransaction   RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
+  recurringTransactionId Int?
+
+  transactionType    String?     // EXPENSE | INCOME | ASSET | INVESTMENT | LOAN | INSURANCE | TRANSFER
+  subType            String?     // PURCHASE | REPAIR | MAINTENANCE | ACCESSORIES | BUY | SELL | EMI | PREMIUM
+
+  principalComponent Float?      // EMI principal reduction
+  interestComponent  Float?      // EMI interest expense
+
+  amount             Float
+  date               DateTime    @default(now())
+  notes              String?
+
+  @@unique([recurringTransactionId, date], name: "recurring_occurrence")
 }
 
 // ==========================
@@ -96,15 +135,19 @@ model Transaction {
 // ==========================
 
 model Asset {
-  id            Int      @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
 
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        Int
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int
 
-  name          String
-  type          String
-  value         Float
-  acquired      DateTime?
+  name            String
+  type            String        // Electronics | Vehicle | Real Estate | Gold / Jewelry | Other
+  purchaseValue   Float         @default(0)
+  currentValue    Float         @default(0)
+  value           Float         @default(0)
+  acquired        DateTime?
+
+  transactions    Transaction[]
 }
 
 // ==========================
@@ -112,16 +155,156 @@ model Asset {
 // ==========================
 
 model Investment {
+  id              Int           @id @default(autoincrement())
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int
+
+  name            String
+  type            String
+  investedAmount  Float         @default(0)
+  currentValue    Float         @default(0)
+  amount          Float         @default(0)
+  quantity        Float?
+  dateAcquired    DateTime?
+
+  transactions    Transaction[]
+}
+
+// ==========================
+// Loans / Liabilities
+// ==========================
+
+model Loan {
+  id                 Int           @id @default(autoincrement())
+
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             Int
+
+  name               String        // e.g. Personal Loan, Home Loan, Bike Loan
+  type               String        // PERSONAL | HOME | VEHICLE | EDUCATION | CREDIT_CARD | OTHER
+  lender             String?       // e.g. HDFC Bank, SBI
+  principalAmount    Float
+  interestRate       Float         // Annual interest %
+  interestType       String        @default("FIXED")
+  tenureMonths       Int
+  startDate          DateTime
+  endDate            DateTime?
+  emiAmount          Float
+  remainingPrincipal Float
+  totalInterestPaid  Float         @default(0)
+  status             String        @default("ACTIVE") // ACTIVE | CLOSED
+  notes              String?
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  transactions       Transaction[]
+}
+
+// ==========================
+// Recurring Transactions
+// ==========================
+
+model RecurringTransaction {
+  id              Int           @id @default(autoincrement())
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int
+
+  name            String
+  amount          Float
+  type            String        // EXPENSE | INCOME | TRANSFER | ASSET | INVESTMENT | LOAN | INSURANCE
+  frequency       String        // DAILY | WEEKLY | MONTHLY | QUARTERLY | YEARLY
+
+  accountId       Int
+  account         Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  categoryId      String?
+  category        Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  startDate       DateTime
+  nextOccurrence  DateTime
+  endDate         DateTime?
+  isActive        Boolean       @default(true)
+  notes           String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  transactions    Transaction[]
+}
+
+// ==========================
+// Insurance Management
+// ==========================
+
+model Insurance {
+  id               Int           @id @default(autoincrement())
+
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           Int
+
+  name             String        // e.g. Family Health Plan, Activa Comprehensive
+  type             String        // HEALTH | LIFE | VEHICLE | HOME | TRAVEL | OTHER
+  provider         String        // e.g. HDFC ERGO, Star Health
+  policyNumber     String?
+  coverageAmount   Float
+  premiumAmount    Float
+  premiumFrequency String        // MONTHLY | QUARTERLY | YEARLY
+  startDate        DateTime
+  renewalDate      DateTime
+  expiryDate       DateTime?
+  nominee          String?
+  status           String        @default("ACTIVE") // ACTIVE | LAPSED | EXPIRED
+  notes            String?
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  transactions     Transaction[]
+}
+
+// ==========================
+// Financial Goals
+// ==========================
+
+model Goal {
   id            Int      @id @default(autoincrement())
 
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        Int
 
-  name          String
-  type          String
-  amount        Float
-  quantity      Float?
-  dateAcquired  DateTime?
+  name          String   // e.g. Emergency Fund, New Vehicle, Vacation
+  targetAmount  Float
+  currentAmount Float    @default(0)
+  targetDate    DateTime
+  category      String   // EMERGENCY_FUND | VEHICLE | HOUSE | VACATION | EDUCATION | RETIREMENT | OTHER
+  monthlyTarget Float?
+  status        String   @default("IN_PROGRESS") // IN_PROGRESS | COMPLETED | PAUSED
+  notes         String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ==========================
+// Dashboard Personalization
+// ==========================
+
+model UserDashboardPreference {
+  id           Int      @id @default(autoincrement())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+
+  widgetKey    String   // total_balance, net_worth, income_expense, savings_rate, expense_categories, etc.
+  isEnabled    Boolean  @default(true)
+  displayOrder Int
+
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, widgetKey], name: "user_widget_key")
 }
 
 // ==========================

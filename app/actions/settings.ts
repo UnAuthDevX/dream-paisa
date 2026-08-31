@@ -1,12 +1,11 @@
 'use server';
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import prisma from '@/lib/db';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveDatabaseUser, getCurrentDatabaseUser } from '@/lib/account-lifecycle';
+import { getActiveDatabaseUser } from '@/lib/account-lifecycle';
 
 const nameSchema = z.string().trim().min(2).max(100);
 const passwordSchema = z.string().min(8, 'Password must be at least 8 characters.');

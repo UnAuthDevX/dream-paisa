@@ -111,6 +111,11 @@ function LoginForm() {
                 className="h-11"
                 required
               />
+              <div className="text-right">
+                <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             {/* Password */}

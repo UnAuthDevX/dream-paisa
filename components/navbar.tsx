@@ -19,6 +19,7 @@ export async function Navbar() {
         </div>
         <div className="flex items-center space-x-4">
           <Link href="/about" className="text-sm font-medium hover:text-primary">About</Link>
+          <Link href="/features" className="text-sm font-medium hover:text-primary">Features</Link>
           <Link href="/contact" className="text-sm font-medium hover:text-primary">Contact</Link>
           <ThemeToggle />
           {user ? (

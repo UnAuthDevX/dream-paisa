@@ -5,6 +5,7 @@ import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getActiveDatabaseUser } from '@/lib/account-lifecycle';
+import { localDayRange } from '@/lib/date';
 
 const transactionSchema = z.object({
   accountId: z.coerce.number().int().positive(),
@@ -12,6 +13,16 @@ const transactionSchema = z.object({
   amount: z.coerce.number().finite().refine((amount) => amount !== 0, 'Amount cannot be zero.'),
   notes: z.string().trim().max(500).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  txType: z.enum(['Expense', 'Income', 'Asset', 'Investment']).optional(),
+  assetMode: z.enum(['new', 'existing']).optional(),
+  assetId: z.coerce.number().int().positive().optional().nullable(),
+  newAssetName: z.string().trim().max(100).optional(),
+  newAssetCategory: z.string().trim().max(50).optional(),
+  assetSubType: z.enum(['PURCHASE', 'REPAIR', 'MAINTENANCE', 'ACCESSORIES']).optional(),
+  investmentMode: z.enum(['new', 'existing']).optional(),
+  investmentId: z.coerce.number().int().positive().optional().nullable(),
+  newInvestmentName: z.string().trim().max(100).optional(),
+  newInvestmentType: z.string().trim().max(50).optional(),
 });
 
 async function getOrCreateCurrentUserId() {
@@ -27,87 +38,6 @@ export async function getCategories() {
   });
 }
 
-async function revertInvestmentEffect(tx: any, userId: number, categoryId: string | null | undefined, amount: number, notes: string | null | undefined) {
-  if (!categoryId) return;
-  const category = await tx.category.findUnique({ where: { id: categoryId } });
-  if (!category || category.name !== 'Investments') return;
-
-  const investmentName = notes?.trim() || 'Investments';
-  const isExpense = amount < 0;
-  const absoluteAmount = Math.abs(amount);
-
-  const existingInvestment = await tx.investment.findFirst({
-    where: {
-      userId,
-      name: {
-        equals: investmentName,
-        mode: 'insensitive'
-      }
-    }
-  });
-
-  if (existingInvestment) {
-    let newAmount = existingInvestment.amount;
-    if (isExpense) {
-      newAmount = Math.max(0, newAmount - absoluteAmount);
-    } else {
-      newAmount += absoluteAmount;
-    }
-
-    await tx.investment.update({
-      where: { id: existingInvestment.id },
-      data: { amount: newAmount }
-    });
-  }
-}
-
-async function applyInvestmentEffect(tx: any, userId: number, categoryId: string | null | undefined, amount: number, notes: string | null | undefined, date: Date) {
-  if (!categoryId) return;
-  const category = await tx.category.findUnique({ where: { id: categoryId } });
-  if (!category || category.name !== 'Investments') return;
-
-  const investmentName = notes?.trim() || 'Investments';
-  const isExpense = amount < 0;
-  const absoluteAmount = Math.abs(amount);
-
-  const existingInvestment = await tx.investment.findFirst({
-    where: {
-      userId,
-      name: {
-        equals: investmentName,
-        mode: 'insensitive'
-      }
-    }
-  });
-
-  if (existingInvestment) {
-    let newAmount = existingInvestment.amount;
-    if (isExpense) {
-      newAmount += absoluteAmount;
-    } else {
-      newAmount = Math.max(0, newAmount - absoluteAmount);
-    }
-
-    await tx.investment.update({
-      where: { id: existingInvestment.id },
-      data: {
-        amount: newAmount,
-        dateAcquired: date
-      }
-    });
-  } else {
-    await tx.investment.create({
-      data: {
-        userId,
-        name: investmentName,
-        type: 'General',
-        amount: isExpense ? absoluteAmount : 0,
-        dateAcquired: date
-      }
-    });
-  }
-}
-
 export async function createTransaction(formData: FormData) {
   const userId = await getOrCreateCurrentUserId();
   if (!userId) return { error: 'You must sign in with a verified email to create a transaction.' };
@@ -118,10 +48,20 @@ export async function createTransaction(formData: FormData) {
     amount: formData.get('amount'),
     notes: formData.get('notes'),
     date: formData.get('date'),
+    txType: formData.get('txType') || 'Expense',
+    assetMode: formData.get('assetMode') || undefined,
+    assetId: formData.get('assetId') || undefined,
+    newAssetName: formData.get('newAssetName') || undefined,
+    newAssetCategory: formData.get('newAssetCategory') || undefined,
+    assetSubType: formData.get('assetSubType') || undefined,
+    investmentMode: formData.get('investmentMode') || undefined,
+    investmentId: formData.get('investmentId') || undefined,
+    newInvestmentName: formData.get('newInvestmentName') || undefined,
+    newInvestmentType: formData.get('newInvestmentType') || undefined,
   });
 
   if (!parsed.success) {
-    return { error: 'Invalid input' };
+    return { error: 'Invalid input. Please check all required fields.' };
   }
 
   // Verify account belongs to user
@@ -133,39 +73,120 @@ export async function createTransaction(formData: FormData) {
     return { error: 'Account not found or unauthorized' };
   }
 
-  const amount = parsed.data.amount;
+  const rawAmount = Math.abs(parsed.data.amount);
   const dateObj = parsed.data.date ? new Date(`${parsed.data.date}T00:00:00`) : new Date();
   if (Number.isNaN(dateObj.getTime())) return { error: 'Please provide a valid transaction date.' };
 
+  const txType = parsed.data.txType || (parsed.data.amount > 0 ? 'Income' : 'Expense');
+  const finalAmount = txType === 'Income' ? rawAmount : -rawAmount;
+  let linkedAssetId: number | null = null;
+  let linkedInvestmentId: number | null = null;
+  let transactionTypeStr = txType.toUpperCase();
+  let subTypeStr: string | null = null;
+
   await prisma.$transaction(async (tx) => {
+    // 1. Handle Asset Flow
+    if (txType === 'Asset') {
+      transactionTypeStr = 'ASSET';
+      subTypeStr = parsed.data.assetSubType || 'PURCHASE';
+
+      if (parsed.data.assetMode === 'new') {
+        const assetName = parsed.data.newAssetName || parsed.data.notes || 'New Asset';
+        const assetCategory = parsed.data.newAssetCategory || 'Other';
+        const createdAsset = await tx.asset.create({
+          data: {
+            userId,
+            name: assetName,
+            type: assetCategory,
+            purchaseValue: rawAmount,
+            currentValue: rawAmount,
+            value: rawAmount,
+            acquired: dateObj,
+          },
+        });
+        linkedAssetId = createdAsset.id;
+      } else if (parsed.data.assetId) {
+        linkedAssetId = parsed.data.assetId;
+        if (subTypeStr === 'PURCHASE') {
+          await tx.asset.update({
+            where: { id: parsed.data.assetId },
+            data: {
+              purchaseValue: { increment: rawAmount },
+              currentValue: { increment: rawAmount },
+              value: { increment: rawAmount },
+            },
+          });
+        }
+      }
+    }
+
+    // 2. Handle Investment Flow
+    if (txType === 'Investment') {
+      transactionTypeStr = 'INVESTMENT';
+      subTypeStr = 'BUY';
+
+      if (parsed.data.investmentMode === 'new') {
+        const invName = parsed.data.newInvestmentName || parsed.data.notes || 'New Investment';
+        const invType = parsed.data.newInvestmentType || 'General';
+        const createdInvestment = await tx.investment.create({
+          data: {
+            userId,
+            name: invName,
+            type: invType,
+            investedAmount: rawAmount,
+            currentValue: rawAmount,
+            amount: rawAmount,
+            dateAcquired: dateObj,
+          },
+        });
+        linkedInvestmentId = createdInvestment.id;
+      } else if (parsed.data.investmentId) {
+        linkedInvestmentId = parsed.data.investmentId;
+        await tx.investment.update({
+          where: { id: parsed.data.investmentId },
+          data: {
+            investedAmount: { increment: rawAmount },
+            currentValue: { increment: rawAmount },
+            amount: { increment: rawAmount },
+          },
+        });
+      }
+    }
+
+    // 3. Create Transaction Record
     await tx.transaction.create({
       data: {
         accountId: account.id,
         categoryId: parsed.data.categoryId ?? null,
-        amount,
+        amount: finalAmount,
         notes: parsed.data.notes,
         date: dateObj,
-      }
+        transactionType: transactionTypeStr,
+        subType: subTypeStr,
+        assetId: linkedAssetId,
+        investmentId: linkedInvestmentId,
+      },
     });
 
+    // 4. Update Bank Account Balance
     await tx.account.update({
       where: { id: account.id },
       data: {
         balance: {
-          increment: amount,
-        }
-      }
+          increment: finalAmount,
+        },
+      },
     });
-
-    await applyInvestmentEffect(tx, userId, parsed.data.categoryId, amount, parsed.data.notes, dateObj);
   });
 
   revalidatePath('/transactions');
   revalidatePath('/dashboard');
   revalidatePath('/accounts');
+  revalidatePath('/assets');
+  if (linkedAssetId) revalidatePath(`/assets/${linkedAssetId}`);
   revalidatePath('/investments');
 
-  return { success: true, transaction: { amount, notes: parsed.data.notes ?? '' } };
+  return { success: true, transaction: { amount: finalAmount, notes: parsed.data.notes ?? '' } };
 }
 
 export async function updateTransaction(id: number, formData: FormData) {
@@ -199,8 +220,6 @@ export async function updateTransaction(id: number, formData: FormData) {
   if (Number.isNaN(dateObj.getTime())) return { error: 'Please provide a valid transaction date.' };
 
   await prisma.$transaction(async (tx) => {
-    await revertInvestmentEffect(tx, userId, existing.categoryId, existing.amount, existing.notes);
-
     await tx.transaction.update({
       where: { id },
       data: {
@@ -223,13 +242,13 @@ export async function updateTransaction(id: number, formData: FormData) {
       where: { id: newAccount.id },
       data: { balance: { increment: newAmount } },
     });
-
-    await applyInvestmentEffect(tx, userId, parsed.data.categoryId, newAmount, parsed.data.notes, dateObj);
   });
 
   revalidatePath('/transactions');
   revalidatePath('/dashboard');
   revalidatePath('/accounts');
+  revalidatePath('/assets');
+  if (existing.assetId) revalidatePath(`/assets/${existing.assetId}`);
   revalidatePath('/investments');
 
   return { success: true, transaction: { amount: newAmount, notes: parsed.data.notes ?? '' } };
@@ -245,8 +264,6 @@ export async function deleteTransaction(id: number) {
   if (!existing) return { error: 'Transaction not found or unauthorized.' };
 
   await prisma.$transaction(async (tx) => {
-    await revertInvestmentEffect(tx, userId, existing.categoryId, existing.amount, existing.notes);
-
     await tx.transaction.delete({ where: { id } });
     if (existing.accountId) {
       await tx.account.update({
@@ -259,6 +276,8 @@ export async function deleteTransaction(id: number) {
   revalidatePath('/transactions');
   revalidatePath('/dashboard');
   revalidatePath('/accounts');
+  revalidatePath('/assets');
+  if (existing.assetId) revalidatePath(`/assets/${existing.assetId}`);
   revalidatePath('/investments');
 
   return { success: true };
@@ -278,6 +297,7 @@ export async function getDashboardInsights(options: AnalysisOptions = {}) {
       monthlyIncome: 0,
       monthlyExpenses: 0,
       categoryChartData: [],
+      incomeCategoryChartData: [],
       selectedMonth: new Date().getMonth() + 1,
       selectedYear: new Date().getFullYear(),
       selectedMode: 'monthly' as const,
@@ -319,10 +339,14 @@ export async function getDashboardInsights(options: AnalysisOptions = {}) {
   let income = 0;
   let expenses = 0;
   const expensesByCategory: Record<string, number> = {};
+  const incomeByCategory: Record<string, number> = {};
 
   transactions.forEach(t => {
+    if (t.transactionType === 'TRANSFER') return;
     if (t.amount > 0) {
       income += t.amount;
+      const catName = t.category?.name || 'Uncategorized';
+      incomeByCategory[catName] = (incomeByCategory[catName] || 0) + t.amount;
     } else {
       expenses += Math.abs(t.amount);
       const catName = t.category?.name || 'Uncategorized';
@@ -334,31 +358,48 @@ export async function getDashboardInsights(options: AnalysisOptions = {}) {
     name: key,
     value: expensesByCategory[key]
   }));
+  const incomeCategoryChartData = Object.keys(incomeByCategory).map(key => ({
+    name: key,
+    value: incomeByCategory[key]
+  }));
 
   return {
     totalBalance,
     monthlyIncome: income,
     monthlyExpenses: expenses,
     categoryChartData,
+    incomeCategoryChartData,
     selectedMonth: month,
     selectedYear: year,
     selectedMode: mode as 'monthly' | 'yearly',
   };
 }
 
-export async function getRecentTransactions(limit = 5) {
+export async function getRecentTransactions(limit = 5, options: AnalysisOptions = {}) {
   const userId = await getOrCreateCurrentUserId();
   if (!userId) return [];
 
+  const now = new Date();
+  const year = options.year ?? now.getFullYear();
+  const month = options.month ?? now.getMonth() + 1;
+  const mode = options.mode ?? 'monthly';
+  const startDate = mode === 'yearly' ? new Date(year, 0, 1) : new Date(year, month - 1, 1);
+  const endDate = mode === 'yearly' ? new Date(year, 11, 31, 23, 59, 59, 999) : new Date(year, month, 0, 23, 59, 59, 999);
+
   return await prisma.transaction.findMany({
     where: {
-      account: { userId }
+      account: { userId },
+      date: { gte: startDate, lte: endDate },
     },
     take: limit,
     orderBy: { date: 'desc' },
     include: {
       account: true,
       category: true,
+      asset: true,
+      investment: true,
+      loan: true,
+      recurringTransaction: true,
     }
   });
 }
@@ -373,6 +414,8 @@ type TransactionFilters = {
   date?: string;
   allTime?: string;
   sort?: "newest" | "oldest" | "highest" | "lowest";
+  recurringId?: string;
+  loanId?: string;
 };
 
 export async function getTransactions(filters: TransactionFilters = {}) {
@@ -415,6 +458,8 @@ export async function getTransactions(filters: TransactionFilters = {}) {
   if (filters.category) {
     where.categoryId = filters.category;
   }
+  if (filters.recurringId) where.recurringTransactionId = Number(filters.recurringId);
+  if (filters.loanId) where.loanId = Number(filters.loanId);
 
   const amountFilter: Prisma.FloatFilter = {};
 
@@ -453,11 +498,7 @@ export async function getTransactions(filters: TransactionFilters = {}) {
   // Date filter: if explicitly provided, use single day date range.
   // Otherwise, default to current calendar month (unless allTime is set).
   if (filters.date) {
-    const start = new Date(filters.date);
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date(filters.date);
-    end.setHours(23, 59, 59, 999);
+    const { start, end } = localDayRange(filters.date);
 
     where.date = {
       gte: start,
@@ -489,8 +530,139 @@ export async function getTransactions(filters: TransactionFilters = {}) {
     include: {
       account: true,
       category: true,
+      asset: true,
+      investment: true,
+      loan: true,
+      recurringTransaction: true,
     },
   });
 
   return { transactions };
+}
+
+export async function getTransactionAnalytics(options: AnalysisOptions = {}) {
+  const userId = await getOrCreateCurrentUserId();
+  if (!userId) {
+    return {
+      growth: {
+        currentMonthCount: 0,
+        previousMonthCount: 0,
+        absoluteChange: 0,
+        percentageChange: 0,
+        displayGrowthString: '0 transactions',
+      },
+      savingsRate: {
+        income: 0,
+        expense: 0,
+        savings: 0,
+        savingsRate: 0,
+        previousSavingsRate: 0,
+        savingsRateChange: 0,
+      },
+    };
+  }
+
+  const now = new Date();
+  const year = options.year ?? now.getFullYear();
+  const month = options.month ?? now.getMonth() + 1;
+  const mode = options.mode ?? 'monthly';
+  const startCurrentMonth = mode === 'yearly' ? new Date(year, 0, 1, 0, 0, 0, 0) : new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const endCurrentMonth = mode === 'yearly' ? new Date(year, 11, 31, 23, 59, 59, 999) : new Date(year, month, 0, 23, 59, 59, 999);
+  const startPrevMonth = mode === 'yearly' ? new Date(year - 1, 0, 1, 0, 0, 0, 0) : new Date(year, month - 2, 1, 0, 0, 0, 0);
+  const endPrevMonth = mode === 'yearly' ? new Date(year - 1, 11, 31, 23, 59, 59, 999) : new Date(year, month - 1, 0, 23, 59, 59, 999);
+
+  // Fetch Current & Previous Month Transactions for user's accounts
+  const userAccounts = await prisma.account.findMany({
+    where: { userId },
+    select: { id: true },
+  });
+  const accountIds = userAccounts.map((a) => a.id);
+
+  const [currentTxs, prevTxs] = await Promise.all([
+    prisma.transaction.findMany({
+      where: {
+        accountId: { in: accountIds },
+        date: { gte: startCurrentMonth, lte: endCurrentMonth },
+      },
+    }),
+    prisma.transaction.findMany({
+      where: {
+        accountId: { in: accountIds },
+        date: { gte: startPrevMonth, lte: endPrevMonth },
+      },
+    }),
+  ]);
+
+  // 1. Transaction Growth Analytics
+  const currentMonthCount = currentTxs.length;
+  const previousMonthCount = prevTxs.length;
+  const absoluteChange = currentMonthCount - previousMonthCount;
+
+  let percentageChange = 0;
+  let displayGrowthString = '';
+
+  if (previousMonthCount === 0) {
+    percentageChange = 100;
+    displayGrowthString = absoluteChange > 0 ? `+${absoluteChange} transactions (New activity)` : '0 transactions';
+  } else {
+    percentageChange = (absoluteChange / previousMonthCount) * 100;
+    const sign = absoluteChange >= 0 ? '+' : '';
+    displayGrowthString = `${sign}${absoluteChange} transactions (${sign}${percentageChange.toFixed(1)}% vs last month)`;
+  }
+
+  // 2. Savings Rate Analytics
+  // Exclude TRANSFER type
+  const currIncome = currentTxs
+    .filter((t) => t.transactionType !== 'TRANSFER' && t.amount > 0)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  // For expenses, exclude TRANSFER and loan principal repayments (which are liability reductions, not pure expenses)
+  const currExpense = currentTxs
+    .filter((t) => t.transactionType !== 'TRANSFER' && t.amount < 0)
+    .reduce((acc, t) => {
+      // If EMI payment with principal component, only count interest component as pure expense
+      if (t.transactionType === 'LOAN' && t.subType === 'EMI' && t.principalComponent !== null && t.principalComponent !== undefined) {
+        return acc + (t.interestComponent ?? 0);
+      }
+      return acc + Math.abs(t.amount);
+    }, 0);
+
+  const currSavings = currIncome - currExpense;
+  const savingsRate = currIncome > 0 ? (currSavings / currIncome) * 100 : 0;
+
+  // Previous month savings rate
+  const prevIncome = prevTxs
+    .filter((t) => t.transactionType !== 'TRANSFER' && t.amount > 0)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const prevExpense = prevTxs
+    .filter((t) => t.transactionType !== 'TRANSFER' && t.amount < 0)
+    .reduce((acc, t) => {
+      if (t.transactionType === 'LOAN' && t.subType === 'EMI' && t.principalComponent !== null && t.principalComponent !== undefined) {
+        return acc + (t.interestComponent ?? 0);
+      }
+      return acc + Math.abs(t.amount);
+    }, 0);
+
+  const prevSavings = prevIncome - prevExpense;
+  const previousSavingsRate = prevIncome > 0 ? (prevSavings / prevIncome) * 100 : 0;
+  const savingsRateChange = savingsRate - previousSavingsRate;
+
+  return {
+    growth: {
+      currentMonthCount,
+      previousMonthCount,
+      absoluteChange,
+      percentageChange,
+      displayGrowthString,
+    },
+    savingsRate: {
+      income: currIncome,
+      expense: currExpense,
+      savings: currSavings,
+      savingsRate,
+      previousSavingsRate,
+      savingsRateChange,
+    },
+  };
 }

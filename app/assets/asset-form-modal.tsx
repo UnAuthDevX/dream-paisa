@@ -27,12 +27,32 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toLocalDateInputValue } from '@/lib/date';
 
-type Asset = { id: number; name: string; type: string; value: number; acquired: Date | null };
+type Asset = {
+  id: number;
+  name: string;
+  type: string;
+  purchaseValue?: number;
+  currentValue?: number;
+  value?: number;
+  acquired: Date | null;
+};
 
 interface AssetFormModalProps {
   asset?: Asset;
 }
+
+const COMMON_CATEGORIES = [
+  'Electronics',
+  'Vehicle',
+  'Real Estate',
+  'Gold & Jewelry',
+  'Gadgets & Appliances',
+  'Furniture',
+  'Collectibles',
+  'Other',
+];
 
 export default function AssetFormModal({ asset }: AssetFormModalProps = {}) {
   const isEditing = !!asset;
@@ -44,9 +64,23 @@ export default function AssetFormModal({ asset }: AssetFormModalProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ name: string; value: number } | null>(null);
 
+  const initialPurchase = asset?.purchaseValue ?? (asset?.value ?? '');
+  const initialCurrent = asset?.currentValue ?? (asset?.value ?? '');
+
+  const [purchaseValue, setPurchaseValue] = useState<string | number>(initialPurchase);
+  const [currentValue, setCurrentValue] = useState<string | number>(initialCurrent);
+
   const defaultAcquired = asset?.acquired
-    ? new Date(asset.acquired).toISOString().split('T')[0]
-    : '';
+    ? toLocalDateInputValue(new Date(asset.acquired))
+    : toLocalDateInputValue();
+
+  function handlePurchaseChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setPurchaseValue(val);
+    if (!isEditing && (!currentValue || currentValue === purchaseValue)) {
+      setCurrentValue(val);
+    }
+  }
 
   async function submit(formData: FormData) {
     if (submissionLock.current) return;
@@ -58,8 +92,10 @@ export default function AssetFormModal({ asset }: AssetFormModalProps = {}) {
         ? await updateAsset(asset!.id, formData)
         : await createAsset(formData);
       if (result?.error) setError(result.error);
-      else if (result?.success && result.item) { setOpen(false); setSuccess(result.item); }
-      else setError('Unable to save asset. Please try again.');
+      else if (result?.success && result.item) {
+        setOpen(false);
+        setSuccess(result.item);
+      } else setError('Unable to save asset. Please try again.');
     } catch {
       setError('Unable to save asset. Please try again.');
     } finally {
@@ -74,6 +110,7 @@ export default function AssetFormModal({ asset }: AssetFormModalProps = {}) {
     setDeletePending(true);
     try {
       await deleteAsset(asset!.id);
+      setOpen(false);
     } finally {
       setDeletePending(false);
       deletionLock.current = false;
@@ -92,39 +129,104 @@ export default function AssetFormModal({ asset }: AssetFormModalProps = {}) {
               </Button>
             ) : (
               <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />Add Asset
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Asset
               </Button>
             )
           }
         />
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Edit Asset' : 'Add Asset'}</DialogTitle>
+            <DialogTitle>{isEditing ? 'Edit Asset' : 'Add New Asset'}</DialogTitle>
             <DialogDescription>
-              {isEditing ? 'Update the details for this asset.' : 'Track valuable things you own.'}
+              {isEditing
+                ? 'Update asset details, purchase price, or estimated current value.'
+                : 'Track physical assets and calculate real-time depreciation.'}
             </DialogDescription>
           </DialogHeader>
-          <form action={submit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="asset-name">Name</Label>
-              <Input id="asset-name" name="name" placeholder="e.g. Car" defaultValue={asset?.name} required />
+          <form action={submit} className="space-y-3.5">
+            <div className="space-y-1.5">
+              <Label htmlFor="asset-name">Asset Name</Label>
+              <Input
+                id="asset-name"
+                name="name"
+                placeholder="e.g. MacBook Pro, Honda Activa, 24K Gold"
+                defaultValue={asset?.name}
+                required
+              />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="asset-type">Type</Label>
-              <Input id="asset-type" name="type" placeholder="e.g. Vehicle" defaultValue={asset?.type} required />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="asset-type">Category</Label>
+              <Input
+                id="asset-type"
+                name="type"
+                placeholder="e.g. Electronics, Vehicle, Real Estate"
+                defaultValue={asset?.type || 'Electronics'}
+                list="category-options"
+                required
+              />
+              <datalist id="category-options">
+                {COMMON_CATEGORIES.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="asset-value">Current value (₹)</Label>
-              <Input id="asset-value" name="value" type="number" min="0" step="0.01" defaultValue={asset?.value} required />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="asset-purchase-val">Purchase Value (₹)</Label>
+                <Input
+                  id="asset-purchase-val"
+                  name="purchaseValue"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={purchaseValue}
+                  onChange={handlePurchaseChange}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="asset-current-val">Current Value (₹)</Label>
+                <Input
+                  id="asset-current-val"
+                  name="currentValue"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={currentValue}
+                  onChange={(e) => setCurrentValue(e.target.value)}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="asset-date">Acquired on</Label>
-              <Input id="asset-date" name="acquired" type="date" defaultValue={defaultAcquired} />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="asset-date">Acquisition Date</Label>
+              <Input
+                id="asset-date"
+                name="acquired"
+                type="date"
+                defaultValue={defaultAcquired}
+              />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <DialogFooter>
-              <Button type="submit" disabled={pending}>
-                {pending ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : isEditing ? 'Update Asset' : 'Save Asset'}
+
+            {error && <p className="text-xs text-destructive font-medium">{error}</p>}
+
+            <DialogFooter className="mt-2">
+              <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+                {pending ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                  </>
+                ) : isEditing ? (
+                  'Update Asset'
+                ) : (
+                  'Save Asset'
+                )}
               </Button>
             </DialogFooter>
           </form>
@@ -135,8 +237,10 @@ export default function AssetFormModal({ asset }: AssetFormModalProps = {}) {
           onDone={() => setSuccess(null)}
           title={isEditing ? '✅ Asset Updated!' : '✅ Asset Added Successfully!'}
         >
-          <p>{success?.name}</p>
-          <p>Value: ₹{success?.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p className="font-semibold text-lg">{success?.name}</p>
+          <p className="text-muted-foreground text-sm">
+            Current Value: ₹{success?.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </p>
         </SuccessDialog>
       </Dialog>
 
@@ -144,7 +248,11 @@ export default function AssetFormModal({ asset }: AssetFormModalProps = {}) {
         <AlertDialog>
           <AlertDialogTrigger
             render={
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive"
+              >
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Delete asset</span>
               </Button>
@@ -164,7 +272,13 @@ export default function AssetFormModal({ asset }: AssetFormModalProps = {}) {
                 disabled={deletePending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {deletePending ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : 'Delete Asset'}
+                {deletePending ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  'Delete Asset'
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

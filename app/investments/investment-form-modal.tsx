@@ -27,19 +27,33 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toLocalDateInputValue } from '@/lib/date';
 
 type Investment = {
   id: number;
   name: string;
   type: string;
-  amount: number;
-  quantity: number | null;
-  dateAcquired: Date | null;
+  investedAmount?: number;
+  currentValue?: number;
+  amount?: number;
+  quantity?: number | null;
+  dateAcquired?: Date | null;
 };
 
 interface InvestmentFormModalProps {
   investment?: Investment;
 }
+
+const COMMON_INVESTMENT_TYPES = [
+  'Mutual Funds',
+  'Stocks',
+  'Sovereign Gold Bond',
+  'Fixed Deposit',
+  'Crypto',
+  'Bonds',
+  'Real Estate / REITs',
+  'Other',
+];
 
 export default function InvestmentFormModal({ investment }: InvestmentFormModalProps = {}) {
   const isEditing = !!investment;
@@ -51,9 +65,23 @@ export default function InvestmentFormModal({ investment }: InvestmentFormModalP
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ name: string; value: number } | null>(null);
 
+  const initialInvested = investment?.investedAmount ?? (investment?.amount ?? '');
+  const initialCurrent = investment?.currentValue ?? (investment?.amount ?? '');
+
+  const [investedAmount, setInvestedAmount] = useState<string | number>(initialInvested);
+  const [currentValue, setCurrentValue] = useState<string | number>(initialCurrent);
+
   const defaultDate = investment?.dateAcquired
-    ? new Date(investment.dateAcquired).toISOString().split('T')[0]
-    : '';
+    ? toLocalDateInputValue(new Date(investment.dateAcquired))
+    : toLocalDateInputValue();
+
+  function handleInvestedChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setInvestedAmount(val);
+    if (!isEditing && (!currentValue || currentValue === investedAmount)) {
+      setCurrentValue(val);
+    }
+  }
 
   async function submit(formData: FormData) {
     if (submissionLock.current) return;
@@ -65,8 +93,10 @@ export default function InvestmentFormModal({ investment }: InvestmentFormModalP
         ? await updateInvestment(investment!.id, formData)
         : await createInvestment(formData);
       if (result?.error) setError(result.error);
-      else if (result?.success && result.item) { setOpen(false); setSuccess(result.item); }
-      else setError('Unable to save investment. Please try again.');
+      else if (result?.success && result.item) {
+        setOpen(false);
+        setSuccess(result.item);
+      } else setError('Unable to save investment. Please try again.');
     } catch {
       setError('Unable to save investment. Please try again.');
     } finally {
@@ -81,6 +111,7 @@ export default function InvestmentFormModal({ investment }: InvestmentFormModalP
     setDeletePending(true);
     try {
       await deleteInvestment(investment!.id);
+      setOpen(false);
     } finally {
       setDeletePending(false);
       deletionLock.current = false;
@@ -99,43 +130,118 @@ export default function InvestmentFormModal({ investment }: InvestmentFormModalP
               </Button>
             ) : (
               <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />Add Investment
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Investment
               </Button>
             )
           }
         />
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Edit Investment' : 'Add Investment'}</DialogTitle>
             <DialogDescription>
-              {isEditing ? 'Update the details for this investment.' : 'Track mutual funds, stocks, deposits, and more.'}
+              {isEditing
+                ? 'Update investment details, capital deployed, or market valuation.'
+                : 'Track mutual funds, stocks, gold, and deposits.'}
             </DialogDescription>
           </DialogHeader>
-          <form action={submit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="investment-name">Name</Label>
-              <Input id="investment-name" name="name" placeholder="e.g. Index Fund" defaultValue={investment?.name} required />
+          <form action={submit} className="space-y-3.5">
+            <div className="space-y-1.5">
+              <Label htmlFor="investment-name">Investment Name</Label>
+              <Input
+                id="investment-name"
+                name="name"
+                placeholder="e.g. Nifty 50 Index Fund, Sovereign Gold"
+                defaultValue={investment?.name}
+                required
+              />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="investment-type">Type</Label>
-              <Input id="investment-type" name="type" placeholder="e.g. Mutual Fund" defaultValue={investment?.type} required />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="investment-type">Asset Class / Type</Label>
+              <Input
+                id="investment-type"
+                name="type"
+                placeholder="e.g. Mutual Fund, Stocks, SGB"
+                defaultValue={investment?.type || 'Mutual Funds'}
+                list="investment-types"
+                required
+              />
+              <datalist id="investment-types">
+                {COMMON_INVESTMENT_TYPES.map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="investment-amount">Invested amount (₹)</Label>
-              <Input id="investment-amount" name="amount" type="number" min="0" step="0.01" defaultValue={investment?.amount} required />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="invested-amount">Invested Capital (₹)</Label>
+                <Input
+                  id="invested-amount"
+                  name="investedAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={investedAmount}
+                  onChange={handleInvestedChange}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="current-val">Current Value (₹)</Label>
+                <Input
+                  id="current-val"
+                  name="currentValue"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={currentValue}
+                  onChange={(e) => setCurrentValue(e.target.value)}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="investment-quantity">Quantity (optional)</Label>
-              <Input id="investment-quantity" name="quantity" type="number" min="0" step="any" defaultValue={investment?.quantity ?? ''} />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="investment-quantity">Quantity / Units (optional)</Label>
+                <Input
+                  id="investment-quantity"
+                  name="quantity"
+                  type="number"
+                  min="0"
+                  step="any"
+                  defaultValue={investment?.quantity ?? ''}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="investment-date">Acquisition Date</Label>
+                <Input
+                  id="investment-date"
+                  name="dateAcquired"
+                  type="date"
+                  defaultValue={defaultDate}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="investment-date">Purchase date</Label>
-              <Input id="investment-date" name="dateAcquired" type="date" defaultValue={defaultDate} />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <DialogFooter>
-              <Button type="submit" disabled={pending}>
-                {pending ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : isEditing ? 'Update Investment' : 'Save Investment'}
+
+            {error && <p className="text-xs text-destructive font-medium">{error}</p>}
+
+            <DialogFooter className="mt-2">
+              <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+                {pending ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                  </>
+                ) : isEditing ? (
+                  'Update Investment'
+                ) : (
+                  'Save Investment'
+                )}
               </Button>
             </DialogFooter>
           </form>
@@ -146,8 +252,10 @@ export default function InvestmentFormModal({ investment }: InvestmentFormModalP
           onDone={() => setSuccess(null)}
           title={isEditing ? '✅ Investment Updated!' : '✅ Investment Added Successfully!'}
         >
-          <p>{success?.name}</p>
-          <p>Invested: ₹{success?.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p className="font-semibold text-lg">{success?.name}</p>
+          <p className="text-muted-foreground text-sm">
+            Current Value: ₹{success?.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </p>
         </SuccessDialog>
       </Dialog>
 
@@ -155,7 +263,11 @@ export default function InvestmentFormModal({ investment }: InvestmentFormModalP
         <AlertDialog>
           <AlertDialogTrigger
             render={
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive"
+              >
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Delete investment</span>
               </Button>
@@ -175,7 +287,13 @@ export default function InvestmentFormModal({ investment }: InvestmentFormModalP
                 disabled={deletePending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {deletePending ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : 'Delete Investment'}
+                {deletePending ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                  </>
+                ) : (
+                  'Delete Investment'
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

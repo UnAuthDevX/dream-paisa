@@ -7,6 +7,7 @@ export function SiteFooter() {
         <p>© {new Date().getFullYear()} DreamPaisa. Personal finance tracking made simple.</p>
         <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-4 gap-y-2">
           <Link href="/about" className="hover:text-foreground">About</Link>
+          <Link href="/features" className="hover:text-foreground">Features</Link>
           <Link href="/contact" className="hover:text-foreground">Contact</Link>
           <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
           <Link href="/terms" className="hover:text-foreground">Terms</Link>

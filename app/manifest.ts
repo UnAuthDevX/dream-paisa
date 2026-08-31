@@ -2,15 +2,16 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "DreamPaisa",
+    name: "DreamPaisa - Personal Finance & Net Worth Tracker",
     short_name: "DreamPaisa",
-    description: "Your personal finance companion.",
+    description: "Track income, expenses, bank accounts, assets with depreciation, and investments all in one unified personal finance app.",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
+    categories: ["finance", "productivity", "utilities"],
     background_color: "#ffffff",
-    theme_color: "#0f766e",
+    theme_color: "#2563eb",
 
     icons: [
       {

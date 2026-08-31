@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { ChevronRight, ArrowUpRight, ArrowDownLeft, Wallet } from 'lucide-react';
+import { ChevronRight, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type TransactionItem = {
@@ -8,6 +8,8 @@ type TransactionItem = {
   amount: number;
   date: Date;
   notes: string | null;
+  transactionType?: string | null;
+  subType?: string | null;
   account: { name: string } | null;
   category: {
     name: string;
@@ -16,16 +18,10 @@ type TransactionItem = {
     emoji: string | null;
     color: string;
   } | null;
-};
-
-// Fallback color themes for categories
-const CATEGORY_STYLES: Record<string, { bg: string; text: string; badgeBg: string; badgeText: string }> = {
-  Shopping: { bg: 'bg-emerald-500', text: 'text-white', badgeBg: 'bg-red-50 dark:bg-red-950/40', badgeText: 'text-red-500 dark:text-red-400' },
-  Entertainment: { bg: 'bg-emerald-500', text: 'text-white', badgeBg: 'bg-blue-50 dark:bg-blue-950/40', badgeText: 'text-blue-500 dark:text-blue-400' },
-  Income: { bg: 'bg-blue-600', text: 'text-white', badgeBg: 'bg-emerald-50 dark:bg-emerald-950/40', badgeText: 'text-emerald-600 dark:text-emerald-400' },
-  Salary: { bg: 'bg-blue-600', text: 'text-white', badgeBg: 'bg-emerald-50 dark:bg-emerald-950/40', badgeText: 'text-emerald-600 dark:text-emerald-400' },
-  'Food & Dining': { bg: 'bg-amber-500', text: 'text-white', badgeBg: 'bg-amber-50 dark:bg-amber-950/40', badgeText: 'text-amber-600 dark:text-amber-400' },
-  Transport: { bg: 'bg-indigo-600', text: 'text-white', badgeBg: 'bg-purple-50 dark:bg-purple-950/40', badgeText: 'text-purple-600 dark:text-purple-400' },
+  asset?: { name: string; type: string } | null;
+  investment?: { name: string; type: string } | null;
+  loan?: { id: number; name: string; type: string } | null;
+  recurringTransaction?: { id: number; name: string; frequency: string } | null;
 };
 
 export default function RecentTransactionsCard({ transactions }: { transactions: TransactionItem[] }) {
@@ -47,17 +43,23 @@ export default function RecentTransactionsCard({ transactions }: { transactions:
           <div className="divide-y divide-border/40">
             {transactions.map((t) => {
               const isIncome = t.amount > 0;
-              const catName = t.category?.name || (isIncome ? 'Income' : 'Expense');
-              const style = CATEGORY_STYLES[catName] || {
-                bg: isIncome ? 'bg-emerald-500' : 'bg-slate-700',
-                text: 'text-white',
-                badgeBg: isIncome ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-slate-100 dark:bg-slate-800',
-                badgeText: isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300',
-              };
+              const catName = t.asset?.name
+                ? `💻 ${t.asset.name}`
+                : t.investment?.name
+                ? `📈 ${t.investment.name}`
+                : t.loan?.name
+                ? `🏦 ${t.loan.name}`
+                : t.recurringTransaction?.name
+                ? `🔁 ${t.recurringTransaction.name}`
+                : t.category?.name || (isIncome ? 'Income' : 'Expense');
 
-              const title = t.notes || t.category?.name || t.account?.name || (isIncome ? 'Income' : 'Expense');
+              const title = t.notes || (t.asset ? `Asset: ${t.asset.name}` : t.investment ? `Investment: ${t.investment.name}` : t.loan ? `Loan payment: ${t.loan.name}` : t.recurringTransaction ? `Recurring: ${t.recurringTransaction.name}` : (isIncome ? 'Income' : 'Expense'));
               const formattedDate = format(new Date(t.date), 'MMM dd, yyyy • hh:mm a');
-              const categoryColor = t.category?.color || (isIncome ? '#22C55E' : '#64748B');
+              const categoryColor = t.asset
+                ? '#2563EB'
+                : t.investment
+                ? '#4F46E5'
+                : t.loan ? '#D97706' : t.recurringTransaction ? '#7C3AED' : t.category?.color || (isIncome ? '#22C55E' : '#64748B');
 
               return (
                 <div key={t.id} className="py-3.5 flex items-center justify-between gap-3 hover:bg-muted/30 px-2 rounded-xl transition-colors">
@@ -67,7 +69,15 @@ export default function RecentTransactionsCard({ transactions }: { transactions:
                       className="h-11 w-11 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm"
                       style={{ backgroundColor: categoryColor }}
                     >
-                      {t.category?.emoji ? (
+                      {t.asset ? (
+                        <span className="text-xl">💻</span>
+                      ) : t.investment ? (
+                        <span className="text-xl">📈</span>
+                      ) : t.loan ? (
+                        <span className="text-xl">🏦</span>
+                      ) : t.recurringTransaction ? (
+                        <span className="text-xl">🔁</span>
+                      ) : t.category?.emoji ? (
                         <span className="text-xl">{t.category.emoji}</span>
                       ) : isIncome ? (
                         <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />

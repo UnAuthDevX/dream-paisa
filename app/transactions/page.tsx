@@ -15,7 +15,10 @@ import TransactionFormModal from "./transaction-form-modal";
 import TransactionRow from "./transaction-row";
 import { getTransactions, getCategories } from "@/app/actions/transactions";
 import { getAccounts } from "@/app/actions/accounts";
+import { getAssets, getInvestments } from "@/app/actions/portfolio";
 import { requireVerifiedUser } from "@/lib/auth";
+
+export const metadata = { title: 'Transactions', description: 'View, search, and manage your income, expenses, assets, and investment activity.' };
 
 type Props = {
   searchParams: Promise<{
@@ -26,6 +29,9 @@ type Props = {
     min?: string;
     date?: string;
     allTime?: string;
+    add?: string;
+    recurringId?: string;
+    loanId?: string;
   }>;
 };
 
@@ -36,10 +42,12 @@ export default async function TransactionsPage({
 
   const params = await searchParams;
 
-  const [transactionsResult, accounts, categories] = await Promise.all([
+  const [transactionsResult, accounts, categories, assetsResult, investments] = await Promise.all([
     getTransactions(params),
     getAccounts(),
     getCategories(),
+    getAssets(),
+    getInvestments(),
   ]);
 
   if ("error" in transactionsResult) {
@@ -47,7 +55,7 @@ export default async function TransactionsPage({
   }
 
   const transactions = transactionsResult.transactions;
-  const isFiltered = !!(params.search || params.account || params.category || params.type || params.date || params.min || params.allTime === 'true');
+  const isFiltered = !!(params.search || params.account || params.category || params.type || params.date || params.min || params.recurringId || params.loanId || params.allTime === 'true');
   const isDefaultCurrentMonth = !isFiltered;
 
   const currentMonthName = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -70,11 +78,15 @@ export default async function TransactionsPage({
             <TransactionFormModal
               accounts={accounts}
               categories={categories}
+              assets={assetsResult.assets}
+              investments={investments}
+              defaultOpen={params.add === 'true'}
             />
           </div>
         </div>
 
         {/* Filter Indicator Banner */}
+        {(params.recurringId || params.loanId) && <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm"><span>{params.recurringId ? 'Showing transactions created by this recurring schedule.' : 'Showing transactions linked to this loan.'}</span><Link href="/transactions?allTime=true" className="font-semibold text-primary hover:underline">View all transactions</Link></div>}
         {isDefaultCurrentMonth && (
           <div className="flex items-center justify-between bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 p-3 rounded-xl text-xs sm:text-sm text-blue-700 dark:text-blue-300">
             <div className="flex items-center gap-2 font-medium">
@@ -160,9 +172,7 @@ export default async function TransactionsPage({
               </Button>
 
               {isFiltered && (
-                <Button variant="outline" size="sm" render={<Link href="/transactions" />}>
-                  <FilterX className="h-4 w-4 mr-1" /> Clear
-                </Button>
+                <Link href="/transactions" className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted"><FilterX className="h-4 w-4" /> Clear</Link>
               )}
             </div>
           </div>
@@ -177,7 +187,7 @@ export default async function TransactionsPage({
                   <TableHead className="font-bold">Date</TableHead>
                   <TableHead className="font-bold">Description / Notes</TableHead>
                   <TableHead className="font-bold">Account</TableHead>
-                  <TableHead className="font-bold">Category</TableHead>
+                  <TableHead className="font-bold">Category / Entity</TableHead>
                   <TableHead className="text-right font-bold">Amount</TableHead>
                   <TableHead className="text-right font-bold">Actions</TableHead>
                 </TableRow>
@@ -200,6 +210,8 @@ export default async function TransactionsPage({
                       transaction={transaction}
                       accounts={accounts}
                       categories={categories}
+                      assets={assetsResult.assets}
+                      investments={investments}
                     />
                   ))
                 )}

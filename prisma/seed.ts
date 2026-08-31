@@ -452,11 +452,11 @@ export const defaultCategories: DefaultCategory[] = [
 
 
 
-async function main() {
-  console.log("🌱 Start seeding categories...");
-
-  for (const cat of defaultCategories) {
-    const category = await prisma.category.upsert({
+export async function seedCategories() {
+  // Upsert makes seeding safe to run repeatedly: user-created records are not
+  // touched and default-category metadata is kept current.
+  const categories = await Promise.all(defaultCategories.map((cat) =>
+    prisma.category.upsert({
       where: {
         name_type: {
           name: cat.name,
@@ -475,20 +475,22 @@ async function main() {
         ...cat,
         isActive: true,
       },
-    });
+    })
+  ));
+  return categories;
+}
 
-    console.log(`✅ ${category.name} (${category.type}) seeded`);
-  }
-
-  console.log("🎉 Categories seeded successfully!");
+async function main() {
+  console.log(`🌱 Seeding ${defaultCategories.length} default categories...`);
+  const categories = await seedCategories();
+  console.log(`✅ Seeded ${categories.length} default categories successfully.`);
 }
 
 main()
   .catch((error) => {
     console.error("❌ Seeding failed:", error);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
-

@@ -2,6 +2,9 @@ import { requireVerifiedUser } from '@/lib/auth';
 import { getCurrentDatabaseUser } from '@/lib/account-lifecycle';
 import SettingsPanel from './settings-panel';
 import { NavSlide } from '@/components/sidenav';
+import { getDashboardPreferences } from '@/app/actions/dashboard-preferences';
+
+export const metadata = { title: 'Settings', description: 'Manage your DreamPaisa profile, security, appearance, and dashboard preferences.' };
 
 export default async function SettingsPage({
   searchParams,
@@ -9,7 +12,7 @@ export default async function SettingsPage({
   searchParams: Promise<{ password?: string }>;
 }) {
   const authUser = await requireVerifiedUser();
-  const user = await getCurrentDatabaseUser();
+  const [user, dashboardPreferences] = await Promise.all([getCurrentDatabaseUser(), getDashboardPreferences()]);
   const params = await searchParams;
   if (!user) return null;
 
@@ -22,6 +25,7 @@ export default async function SettingsPage({
           name={user.name ?? authUser.user_metadata?.full_name ?? ''}
           email={user.email}
           passwordReset={params.password === 'reset'}
+          dashboardPreferences={dashboardPreferences}
         />
       </main>
     </div>
