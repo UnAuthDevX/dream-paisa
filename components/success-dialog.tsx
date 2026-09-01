@@ -61,9 +61,7 @@ function GoogleAd() {
 
   if (!ENABLE_GOOGLE_ADS) {
     return (
-      <div className="flex min-h-[160px] w-full items-center justify-center text-xs text-muted-foreground">
-        Advertisement
-      </div>
+      <AlternativeAd />
     );
   }
 
@@ -110,13 +108,9 @@ function AlternativeAd() {
   );
 }
 
-
-function AdSlot({
-  transactionNumber = 1,
-}: {
-  transactionNumber?: number;
-}) {
-  const useGoogle = transactionNumber % 2 === 1;
+function AdSlot() {
+  const useGoogle =
+    ENABLE_GOOGLE_ADS && Math.random() < 0.5;
 
   return (
     <div className="border-y py-3">
@@ -157,7 +151,7 @@ export function SuccessDialog({
           </div>
         </DialogHeader>
 
-        <AdSlot transactionNumber={transactionNumber} />
+        <AdSlot/>
 
         <DialogFooter>
           <Button
